@@ -448,12 +448,12 @@ const ChatWindow = () => {
             <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
           <button
-            onClick={() => startCall(contact?._id, 'audio', activeConversation?._id)}
+            onClick={() => startCall(contact?._id, 'audio', activeConversation?._id, contact)}
             className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Voice call">
             <Phone className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
           <button
-            onClick={() => startCall(contact?._id, 'video', activeConversation?._id)}
+            onClick={() => startCall(contact?._id, 'video', activeConversation?._id, contact)}
             className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Video call">
             <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
           </button>
