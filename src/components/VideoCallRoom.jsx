@@ -193,7 +193,7 @@ const VideoCallRoom = () => {
 
         {/* Local PiP — only for video calls */}
         {!isAudio && (
-          <div className="absolute top-4 right-4 w-32 h-20 sm:w-40 sm:h-24 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl bg-black z-20">
+          <div className="absolute top-4 right-3 sm:right-4 w-24 h-16 sm:w-32 sm:h-20 md:w-40 md:h-24 rounded-xl overflow-hidden border-2 border-white/20 shadow-xl bg-black z-20">
             <video
               ref={localVideoRef}
               autoPlay
@@ -210,7 +210,7 @@ const VideoCallRoom = () => {
         )}
 
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-5 pt-5 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
+        <div className="absolute top-0 left-0 right-0 z-20 flex items-start justify-between px-3 sm:px-5 pt-4 sm:pt-5 bg-gradient-to-b from-black/60 to-transparent pointer-events-none">
           <div>
             <p className="text-white font-semibold text-sm leading-tight">
               {displayInfo?.name || (isAudio ? 'Audio Call' : 'Video Call')}
@@ -230,7 +230,7 @@ const VideoCallRoom = () => {
       </div>
 
       {/* ── Controls bar ── */}
-      <div className="relative z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent flex items-center justify-center gap-5 pt-6 pb-10">
+      <div className="relative z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent flex items-center justify-center gap-3 sm:gap-5 pt-4 sm:pt-6 pb-8 sm:pb-10 flex-wrap">
         <ControlBtn
           icon={isMuted ? MicOff : Mic}
           active={isMuted}

@@ -411,7 +411,7 @@ const ChatWindow = () => {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg-primary">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-surface bg-bg-primary/80 backdrop-blur-[16px] sticky top-0 z-10 flex-shrink-0">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-3 border-b border-surface bg-bg-primary/80 backdrop-blur-[16px] sticky top-0 z-10 flex-shrink-0">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setActiveConversation(null)}
@@ -443,29 +443,29 @@ const ChatWindow = () => {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Search in chat">
-            <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <button className="hidden sm:flex p-2 sm:p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Search in chat">
+            <Search className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
           </button>
           <button
             onClick={() => startCall(contact?._id, 'audio', activeConversation?._id, contact)}
-            className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Voice call">
-            <Phone className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            className="p-2 sm:p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Voice call">
+            <Phone className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
           </button>
           <button
             onClick={() => startCall(contact?._id, 'video', activeConversation?._id, contact)}
-            className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Video call">
-            <Video className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            className="p-2 sm:p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group" title="Video call">
+            <Video className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
           </button>
-          <button className="p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group">
-            <MoreVertical className="w-5 h-5 group-hover:scale-110 transition-transform" />
+          <button className="p-2 sm:p-2.5 hover:bg-surface hover:text-accent-primary rounded-full text-text-muted transition-all duration-300 group">
+            <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5 group-hover:scale-110 transition-transform" />
           </button>
         </div>
       </div>
 
       {/* Messages */}
       <div ref={messagesContainerRef} onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-6 py-6 space-y-2 relative bg-bg-primary"
+        className="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-2 relative bg-bg-primary"
         style={{ backgroundImage: 'radial-gradient(circle at center, rgba(34, 197, 94, 0.03) 0%, transparent 70%)' }}>
         {chatMessages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
@@ -545,8 +545,8 @@ const ChatWindow = () => {
             <EmojiPicker
               onEmojiClick={onEmojiClick}
               theme="dark"
-              width={320}
-              height={380}
+              width={typeof window !== 'undefined' && window.innerWidth < 400 ? 280 : 320}
+              height={360}
               searchPlaceholder="Search emoji..."
               lazyLoadEmojis
             />
@@ -555,11 +555,11 @@ const ChatWindow = () => {
       </AnimatePresence>
 
       {/* Input Area */}
-      <div className="p-4 bg-transparent flex-shrink-0 relative">
-        <div className="flex items-end gap-3 max-w-4xl mx-auto bg-bg-secondary rounded-full shadow-card border border-surface px-2 py-1.5 backdrop-blur-[16px]">
+      <div className="p-2 sm:p-4 bg-transparent flex-shrink-0 relative">
+        <div className="flex items-end gap-1 sm:gap-3 max-w-4xl mx-auto bg-bg-secondary rounded-full shadow-card border border-surface px-1.5 sm:px-2 py-1.5 backdrop-blur-[16px]">
           <button onClick={() => setShowEmoji(!showEmoji)}
-            className="p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300 flex-shrink-0" title="Emoji">
-            <Smile className="w-[22px] h-[22px]" />
+            className="p-2 sm:p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300 flex-shrink-0" title="Emoji">
+            <Smile className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
           </button>
 
           <textarea
@@ -569,37 +569,37 @@ const ChatWindow = () => {
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={editingMsg ? 'Edit message...' : 'Type a message...'}
-            className="flex-1 bg-transparent text-text-primary placeholder-text-muted resize-none text-[15px] focus:outline-none py-2.5 max-h-32 my-auto"
-            style={{ height: 'auto', minHeight: '44px' }}
+            className="flex-1 bg-transparent text-text-primary placeholder-text-muted resize-none text-sm sm:text-[15px] focus:outline-none py-2 sm:py-2.5 max-h-32 my-auto"
+            style={{ height: 'auto', minHeight: '40px' }}
             onInput={e => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 128) + 'px' }}
           />
 
-          <div className="flex items-center gap-1 my-auto flex-shrink-0 mr-1">
+          <div className="flex items-center gap-0.5 sm:gap-1 my-auto flex-shrink-0 mr-0.5 sm:mr-1">
             {/* Hidden file inputs */}
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
 
             <button onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300" title="Attach file">
-              <Paperclip className="w-[22px] h-[22px]" />
+              className="hidden sm:flex p-2 sm:p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300" title="Attach file">
+              <Paperclip className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
             </button>
             <button onClick={() => imageInputRef.current?.click()}
-              className="p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300" title="Send image">
-              <ImageIcon className="w-[22px] h-[22px]" />
+              className="p-2 sm:p-2.5 text-text-muted hover:text-accent-primary hover:bg-surface rounded-full transition-all duration-300" title="Send image">
+              <ImageIcon className="w-5 h-5 sm:w-[22px] sm:h-[22px]" />
             </button>
-            
+
             <motion.button
               whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.95 }}
               onClick={handleSend}
               disabled={!input.trim() && !uploading}
               className={cn(
-                'w-11 h-11 rounded-full transition-all duration-300 flex items-center justify-center flex-shrink-0 shadow-glow-green',
+                'w-10 h-10 sm:w-11 sm:h-11 rounded-full transition-all duration-300 flex items-center justify-center flex-shrink-0 shadow-glow-green',
                 input.trim()
                   ? 'bg-gradient-to-tr from-accent-primary to-accent-secondary text-white'
                   : 'bg-surface text-text-muted cursor-not-allowed shadow-none'
               )}
             >
-              <Send className="w-5 h-5 ml-0.5" />
+              <Send className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
             </motion.button>
           </div>
         </div>

@@ -56,8 +56,8 @@ const io = new Server(server, {
 })
 
 // ─── Express Middleware ───────────────────────────────────────
+// cors() handles OPTIONS pre-flight automatically — no separate app.options() needed
 app.use(cors(corsOptions))
-app.options('*', cors(corsOptions)) // Pre-flight for all routes
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cookieParser())

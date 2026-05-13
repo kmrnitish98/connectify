@@ -46,7 +46,7 @@ const Landing = () => {
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+      <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden px-4 sm:px-6 lg:px-8">
         {/* Background Orbs */}
         <div className="orb w-[600px] h-[600px] bg-accent-primary top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/4 opacity-10" />
         <div className="orb w-80 h-80 bg-accent-secondary top-0 right-0 opacity-10" />
@@ -68,7 +68,7 @@ const Landing = () => {
               <span>Now with AI-powered features</span>
             </motion.div>
 
-            <motion.h1 variants={staggerItem} className="text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold mb-6 leading-tight tracking-tight">
+            <motion.h1 variants={staggerItem} className="text-4xl sm:text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold mb-6 leading-tight tracking-tight">
               Connect your team,
               <br />
               <span className="gradient-text">without limits</span>
@@ -108,7 +108,7 @@ const Landing = () => {
             initial={{ opacity: 0, y: 60 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-16 relative max-w-5xl mx-auto"
+            className="mt-12 sm:mt-16 relative max-w-5xl mx-auto px-0"
           >
             <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-transparent to-transparent z-10 bottom-0 h-1/3 pointer-events-none" style={{ top: 'auto' }} />
             <div className="glass-card rounded-2xl overflow-hidden border border-surface/10 shadow-[0_40px_80px_rgba(0,0,0,0.5)]">
