@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Search, Plus, Settings, Bell, MessageSquare, Hash,
-  Users, Zap, LogOut, Moon, Sun, Star, UserPlus, X, Phone
+  Zap, LogOut, Moon, Sun, Star, UserPlus, X, Phone
 } from 'lucide-react'
 import Avatar from './Avatar'
 import { useAuth } from '../context/AuthContext'
@@ -32,8 +32,6 @@ const Sidebar = () => {
   const location = useLocation()
 
   const [search, setSearch] = useState('')
-  const [activeSection, setActiveSection] = useState('chats')
-  const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [showNewChat, setShowNewChat] = useState(false)
   const [newChatQuery, setNewChatQuery] = useState('')
@@ -159,7 +157,7 @@ const Sidebar = () => {
         <div className="p-4 border-b border-surface">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display font-semibold text-text-primary text-sm">
-              {activeSection === 'chats' ? 'Messages' : activeSection === 'channels' ? 'Channels' : activeSection === 'contacts' ? 'Contacts' : 'Starred'}
+              {location.pathname.startsWith('/groups') ? 'Channels' : location.pathname.startsWith('/starred') ? 'Starred' : 'Messages'}
             </h2>
             <div className="flex items-center gap-1">
               <button className="p-1.5 hover:bg-surface/5 rounded-lg text-text-faint hover:text-text-muted transition-colors">
@@ -188,7 +186,7 @@ const Sidebar = () => {
         <AnimatePresence>
           {showNewChat && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4"
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4"
               onClick={() => setShowNewChat(false)}>
               <motion.div initial={{ scale: 0.92, y: -10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.92 }}
                 className="glass-card rounded-2xl w-full max-w-sm border border-surface/10 shadow-card"

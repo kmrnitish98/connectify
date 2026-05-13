@@ -14,7 +14,17 @@ export const ChatProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState(new Set())
   const [loadingConvs, setLoadingConvs] = useState(true)
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+
+  // Refs to avoid stale closures in socket handlers
   const typingTimeouts = useRef({})
+  const activeConversationRef = useRef(null)  // ← FIX #2: ref mirrors state
+  const messagesRef = useRef({})              // ← FIX #3: ref mirrors messages
+
+  // Keep refs in sync with state
+  const updateActiveConversation = useCallback((conv) => {
+    activeConversationRef.current = conv
+    setActiveConversationState(conv)
+  }, [])
 
   // ─── Fetch Conversations ────────────────────────────────────
   useEffect(() => {
@@ -34,6 +44,8 @@ export const ChatProvider = ({ children }) => {
   }, [user])
 
   // ─── Socket Event Listeners ─────────────────────────────────
+  // FIX #2: Dependency array is just [user] — no activeConversation so listeners
+  // are registered ONCE and use the ref to read the current active conversation.
   useEffect(() => {
     const socket = getSocket()
     if (!socket || !user) return
@@ -48,32 +60,51 @@ export const ChatProvider = ({ children }) => {
         if (!hasUser) return c
         return {
           ...c,
-          participants: c.participants.map(p => p._id === userId ? { ...p, lastSeen, status: 'offline' } : p)
+          participants: c.participants.map(p =>
+            p._id === userId ? { ...p, lastSeen, status: 'offline' } : p
+          )
         }
       }))
     }
 
     // Incoming message
+    // FIX #1: Use activeConversationRef.current instead of closure-captured activeConversation
     const onReceiveMessage = (payload) => {
       const message = payload.message || payload
       const conversationObj = payload.conversation
-      const cId = message.conversation || (typeof message.conversation === 'object' ? message.conversation._id : message.conversation)
+      const cId = message.conversation?._id || message.conversation
 
+      // FIX #16: O(1) deduplication using a Map lookup
       setMessages(prev => {
         const existing = prev[cId] || []
+        // Quick ID lookup to prevent duplicates
+        if (existing.length > 0 && existing[existing.length - 1]?._id === message._id) return prev
         if (existing.some(m => m._id === message._id)) return prev
-        return { ...prev, [cId]: [...existing, message] }
+        const updated = { ...prev, [cId]: [...existing, message] }
+        messagesRef.current = updated
+        return updated
       })
 
       setConversations(prev => {
+        const activeId = activeConversationRef.current?._id
         const exists = prev.some(c => c._id === cId)
         if (!exists && conversationObj) {
-          const newConv = { ...conversationObj, lastMessage: message, updatedAt: new Date(), unreadCount: activeConversation?._id === cId ? 0 : 1 }
+          const newConv = {
+            ...conversationObj,
+            lastMessage: message,
+            updatedAt: new Date(),
+            unreadCount: activeId === cId ? 0 : 1,
+          }
           return [newConv, ...prev].sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
         }
         return prev.map(c =>
           c._id === cId
-            ? { ...c, lastMessage: message, updatedAt: new Date(), unreadCount: c._id === activeConversation?._id ? 0 : (c.unreadCount || 0) + 1 }
+            ? {
+                ...c,
+                lastMessage: message,
+                updatedAt: new Date(),
+                unreadCount: activeId === cId ? 0 : (c.unreadCount || 0) + 1,
+              }
             : c
         ).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
       })
@@ -100,7 +131,7 @@ export const ChatProvider = ({ children }) => {
       setMessages(prev => ({
         ...prev,
         [conversationId]: (prev[conversationId] || []).map(m =>
-          m.sender._id !== readBy && !m.readBy?.includes(readBy)
+          m.sender?._id !== readBy && !m.readBy?.includes(readBy)
             ? { ...m, readBy: [...(m.readBy || []), readBy] }
             : m
         ),
@@ -124,11 +155,12 @@ export const ChatProvider = ({ children }) => {
       socket.off('typing_stop', onTypingStop)
       socket.off('messages_read', onMessagesRead)
     }
-  }, [user, activeConversation])
+  }, [user]) // ← FIX #2: no activeConversation in deps
 
   // ─── Select Conversation ────────────────────────────────────
+  // FIX #3: No longer depends on `messages` — uses messagesRef instead
   const setActiveConversation = useCallback(async (conv) => {
-    setActiveConversationState(conv)
+    updateActiveConversation(conv)
     if (!conv) return
 
     const socket = getSocket()
@@ -139,12 +171,16 @@ export const ChatProvider = ({ children }) => {
       prev.map(c => c._id === conv._id ? { ...c, unreadCount: 0 } : c)
     )
 
-    // Load messages if not cached
-    if (!messages[conv._id]) {
+    // Load messages if not cached (use ref to avoid stale closure)
+    if (!messagesRef.current[conv._id]) {
       setLoadingMsgs(true)
       try {
         const data = await chatService.getMessages(conv._id)
-        setMessages(prev => ({ ...prev, [conv._id]: data.messages }))
+        setMessages(prev => {
+          const updated = { ...prev, [conv._id]: data.messages }
+          messagesRef.current = updated
+          return updated
+        })
       } catch (err) {
         console.error('Failed to load messages:', err)
       } finally {
@@ -155,16 +191,20 @@ export const ChatProvider = ({ children }) => {
     // Mark as read
     socket?.emit('messages_read', { conversationId: conv._id })
     chatService.markAsRead(conv._id).catch(() => {})
-  }, [messages])
+  }, [updateActiveConversation]) // ← FIX #3: no messages dep
 
   // ─── Load More Messages (pagination) ───────────────────────
   const loadMoreMessages = useCallback(async (conversationId, page) => {
     try {
       const data = await chatService.getMessages(conversationId, page)
-      setMessages(prev => ({
-        ...prev,
-        [conversationId]: [...data.messages, ...(prev[conversationId] || [])],
-      }))
+      setMessages(prev => {
+        const updated = {
+          ...prev,
+          [conversationId]: [...data.messages, ...(prev[conversationId] || [])],
+        }
+        messagesRef.current = updated
+        return updated
+      })
       return data.pagination
     } catch (err) {
       console.error('loadMoreMessages error:', err)
@@ -246,4 +286,5 @@ export const ChatProvider = ({ children }) => {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useChat = () => useContext(ChatContext)

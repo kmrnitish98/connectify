@@ -10,12 +10,11 @@
  * - contactInfo (outgoing) vs callerInfo (incoming) correctly separated
  * - Toast notifications for missed / rejected / ended calls
  */
-import { useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Mic, MicOff, Video, VideoOff, Monitor, Phone, Maximize2,
 } from 'lucide-react'
-import toast from 'react-hot-toast'
 import Avatar from './Avatar'
 import { useCall } from '../context/CallContext'
 import { cn } from '../utils/helpers'
@@ -77,16 +76,24 @@ const VideoCallRoom = () => {
     toggleMute, toggleVideo, toggleScreenShare,
   } = useCall()
 
-  // Attach streams to video elements as soon as refs + streams are both ready
+  // FIX #5: Attach local stream (always muted — prevents echo)
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream
+      localVideoRef.current.muted = true
     }
   }, [localStream, callState, localVideoRef])
 
+  // FIX #5: Attach remote stream and EXPLICITLY unmute so the other party is audible.
+  // Note: The `muted` HTML attribute on <video> is a one-way binding in React —
+  // setting muted={false} in JSX doesn't always unmute. We must do it via the DOM ref.
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream
+      remoteVideoRef.current.muted = false   // CRITICAL: must be done via ref, not JSX prop
+      remoteVideoRef.current.play().catch(() => {
+        // Autoplay blocked — user interaction needed (handled gracefully)
+      })
     }
   }, [remoteStream, callState, remoteVideoRef])
 
@@ -164,6 +171,7 @@ const VideoCallRoom = () => {
       <div className="relative flex-1 overflow-hidden">
 
         {/* Remote video — hidden for audio calls or before stream arrives */}
+        {/* FIX #5: NO muted attribute here. Muted is set via ref in useEffect. */}
         <video
           ref={remoteVideoRef}
           autoPlay

@@ -1,29 +1,15 @@
 /**
- * useWebRTC.js — Complete rewrite for production reliability
+ * useWebRTC.js — Production-reliable WebRTC hook
  *
- * Root-cause fixes:
- * 1. `trickle: true` — the old code used trickle:false which means the caller
- *    waits for ALL ICE candidates before sending the offer. On Render (behind
- *    a proxy/NAT) this causes a long delay and often fails. With trickle:true
- *    candidates are exchanged incrementally via the `ice_candidate` socket event.
- *
- * 2. STUN/TURN servers — without STUN the peer cannot discover its public IP
- *    when behind NAT. We add Google STUN + Open Relay TURN as fallback.
- *
- * 3. callState race condition — the timeout closure captured a stale callState
- *    value (always 'calling'). Now we use a ref to track state for timeouts.
- *
- * 4. Duplicate peer connections — acceptCall could be called while peerRef
- *    already held an old peer. We now always destroy first.
- *
- * 5. Memory leaks — all tracks are stopped and refs cleared on every cleanup path.
- *
- * 6. endCall emitted twice — caller emitted to both targetUserId AND callerInfo
- *    which created a double "call_ended" on the server. Fixed.
- *
- * 7. callerInfo missing name in 'calling' state — when *you* initiate the call,
- *    callerInfo is null. The UI used callerInfo?.name for the avatar; now we
- *    expose `contactInfo` (the person you're calling) separately.
+ * Fixes applied in this version:
+ * 1. trickle:true — exchange ICE candidates incrementally (faster connection)
+ * 2. STUN/TURN servers — Google STUN + OpenRelay TURN for NAT traversal
+ * 3. callStateRef — avoids stale closure in timeout callbacks
+ * 4. callerInfoRef — avoids stale callerInfo in endCall closure (FIX #4)
+ * 5. Remote audio unmuted — explicitly set muted=false + call play() (FIX #5)
+ * 6. endCall emitted only once — no double-emit bug
+ * 7. Peer always destroyed before creating new one
+ * 8. Full cleanup on unmount — no memory leaks
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Peer from 'simple-peer'
@@ -31,7 +17,6 @@ import { getSocket } from '../socket/socket'
 import { useAuth } from '../context/AuthContext'
 
 // ─── ICE Servers ─────────────────────────────────────────────
-// Uses Google STUN + OpenRelay TURN (free, no sign-up required)
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -62,7 +47,6 @@ const useWebRTC = ({ onCallEnd } = {}) => {
   const [localStream, setLocalStream] = useState(null)
   const [remoteStream, setRemoteStream] = useState(null)
   const [callState, setCallState] = useState('idle')
-  // 'idle' | 'calling' | 'ringing' | 'incoming' | 'connecting' | 'connected'
   const [callerInfo, setCallerInfo] = useState(null)    // who is calling us
   const [contactInfo, setContactInfo] = useState(null)  // who WE are calling
   const [callType, setCallType] = useState('video')
@@ -79,13 +63,27 @@ const useWebRTC = ({ onCallEnd } = {}) => {
   const callTimeoutRef = useRef(null)
   const targetUserIdRef = useRef(null)
   const currentConvIdRef = useRef(null)
-  const callStateRef = useRef('idle') // mirrors callState but readable inside closures
-  const localStreamRef = useRef(null) // mirrors localStream for cleanup closures
+  const callStateRef = useRef('idle')   // mirrors callState — readable inside closures
+  const localStreamRef = useRef(null)   // mirrors localStream for cleanup
+  const callerInfoRef = useRef(null)    // FIX #4: mirrors callerInfo for endCall closure
+  const callTypeRef = useRef('video')   // mirrors callType for closures
+  // FIX: stable ref to endCall so peer handlers can call it without TDZ
+  const endCallRef = useRef(null)
 
-  // Keep callStateRef in sync
+  // Keep refs in sync
   const updateCallState = useCallback((state) => {
     callStateRef.current = state
     setCallState(state)
+  }, [])
+
+  const updateCallerInfo = useCallback((info) => {
+    callerInfoRef.current = info
+    setCallerInfo(info)
+  }, [])
+
+  const updateCallType = useCallback((type) => {
+    callTypeRef.current = type
+    setCallType(type)
   }, [])
 
   const socket = getSocket()
@@ -105,8 +103,25 @@ const useWebRTC = ({ onCallEnd } = {}) => {
     const stream = await navigator.mediaDevices.getUserMedia(constraints)
     localStreamRef.current = stream
     setLocalStream(stream)
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream
+      localVideoRef.current.muted = true // local preview always muted (prevents echo)
+    }
     return stream
+  }, [])
+
+  // ─── Remote Stream Attachment (FIX #5) ────────────────────
+  // Explicitly unmute + play the remote video/audio element.
+  const attachRemoteStream = useCallback((stream) => {
+    setRemoteStream(stream)
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = stream
+      remoteVideoRef.current.muted = false // MUST NOT be muted for other side to be heard
+      remoteVideoRef.current.play().catch((e) => {
+        // Autoplay policy — user interaction required on some browsers
+        console.warn('[WebRTC] remoteVideo.play() blocked:', e.message)
+      })
+    }
   }, [])
 
   // ─── Timer ────────────────────────────────────────────────
@@ -147,7 +162,7 @@ const useWebRTC = ({ onCallEnd } = {}) => {
     stopLocalStream()
     stopTimer()
     updateCallState('idle')
-    setCallerInfo(null)
+    updateCallerInfo(null)
     setContactInfo(null)
     setRemoteStream(null)
     setIsMuted(false)
@@ -155,17 +170,17 @@ const useWebRTC = ({ onCallEnd } = {}) => {
     targetUserIdRef.current = null
     currentConvIdRef.current = null
     incomingSignalRef.current = null
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null
-  }, [destroyPeer, stopLocalStream, stopTimer, updateCallState])
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = null
+    }
+  }, [destroyPeer, stopLocalStream, stopTimer, updateCallState, updateCallerInfo])
 
   // ─── Create Peer ──────────────────────────────────────────
   const createPeer = useCallback((initiator, stream) => {
-    // Always destroy any existing peer first
     destroyPeer()
-
     const peer = new Peer({
       initiator,
-      trickle: true,           // ← critical fix: exchange ICE candidates incrementally
+      trickle: true,   // exchange ICE candidates incrementally
       stream,
       config: ICE_SERVERS,
     })
@@ -180,46 +195,41 @@ const useWebRTC = ({ onCallEnd } = {}) => {
 
     try {
       updateCallState('calling')
-      setCallType(type)
-      setContactInfo(contact) // store who we're calling for the UI
+      updateCallType(type)
+      setContactInfo(contact)
       targetUserIdRef.current = targetUserId
       currentConvIdRef.current = conversationId
 
       const stream = await getMediaStream(type)
       const peer = createPeer(true, stream)
 
-      // trickle:true — each ICE candidate fires this event separately
       peer.on('signal', (signalData) => {
         const sk = getSocket()
         if (!sk) return
         if (signalData.type === 'offer') {
-          // Send the offer
           sk.emit('call_user', { to: targetUserId, signal: signalData, callType: type, conversationId })
-          updateCallState('ringing') // offer sent — waiting for receiver to pick up
+          updateCallState('ringing')
         } else {
-          // Send ICE candidate
           sk.emit('ice_candidate', { to: targetUserId, candidate: signalData })
         }
       })
 
       peer.on('stream', (remStream) => {
         clearTimeout(callTimeoutRef.current)
-        setRemoteStream(remStream)
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remStream
+        attachRemoteStream(remStream) // FIX #5: explicit unmute + play
         updateCallState('connected')
         startTimer()
       })
 
       peer.on('error', (err) => {
         console.error('[Peer] Error:', err.message)
-        endCall()
+        endCallRef.current?.()
       })
 
       peer.on('close', () => {
-        if (callStateRef.current !== 'idle') endCall()
+        if (callStateRef.current !== 'idle') endCallRef.current?.()
       })
 
-      // Auto-cancel after 45 seconds if no answer
       callTimeoutRef.current = setTimeout(() => {
         if (callStateRef.current === 'ringing' || callStateRef.current === 'calling') {
           const sk = getSocket()
@@ -233,17 +243,17 @@ const useWebRTC = ({ onCallEnd } = {}) => {
       console.error('[WebRTC] startCall error:', err)
       resetCallState()
     }
-  }, [socket, getMediaStream, createPeer, startTimer, resetCallState, onCallEnd, updateCallState])
+  }, [socket, getMediaStream, createPeer, attachRemoteStream, startTimer, resetCallState, onCallEnd, updateCallState, updateCallType])
 
   // ─── Accept Incoming Call ─────────────────────────────────
   const acceptCall = useCallback(async () => {
     if (!socket || !incomingSignalRef.current) return
-    const callerUserId = callerInfo?.userId
+    const callerUserId = callerInfoRef.current?.userId // FIX #4: use ref
     if (!callerUserId) return
 
     try {
       updateCallState('connecting')
-      const stream = await getMediaStream(callType)
+      const stream = await getMediaStream(callTypeRef.current) // FIX #4: use ref
       const peer = createPeer(false, stream)
 
       peer.on('signal', (signalData) => {
@@ -257,73 +267,81 @@ const useWebRTC = ({ onCallEnd } = {}) => {
       })
 
       peer.on('stream', (remStream) => {
-        setRemoteStream(remStream)
-        if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remStream
+        attachRemoteStream(remStream) // FIX #5: explicit unmute + play
         updateCallState('connected')
         startTimer()
       })
 
       peer.on('error', (err) => {
         console.error('[Peer] Accept error:', err.message)
-        endCall()
+        endCallRef.current?.()
       })
 
       peer.on('close', () => {
-        if (callStateRef.current !== 'idle') endCall()
+        if (callStateRef.current !== 'idle') endCallRef.current?.()
       })
 
-      // Feed the stored offer signal into the peer
       peer.signal(incomingSignalRef.current)
 
     } catch (err) {
       console.error('[WebRTC] acceptCall error:', err)
       resetCallState()
     }
-  }, [socket, callType, callerInfo, getMediaStream, createPeer, startTimer, resetCallState, updateCallState])
+  }, [socket, getMediaStream, createPeer, attachRemoteStream, startTimer, resetCallState, updateCallState])
 
   // ─── Reject Call ──────────────────────────────────────────
   const rejectCall = useCallback(() => {
-    if (!socket || !callerInfo) return
+    if (!socket || !callerInfoRef.current) return
     socket.emit('call_rejected', {
-      to: callerInfo.userId,
+      to: callerInfoRef.current.userId,
       conversationId: currentConvIdRef.current,
-      callType,
+      callType: callTypeRef.current,
     })
     resetCallState()
-  }, [socket, callerInfo, callType, resetCallState])
+  }, [socket, resetCallState])
 
   // ─── End Call ─────────────────────────────────────────────
+  // FIX #4: Read targetId from refs, not from stale closure state
   const endCall = useCallback((reason = 'ended') => {
     const sk = getSocket()
-    const targetId = targetUserIdRef.current || callerInfo?.userId
+    const targetId = targetUserIdRef.current || callerInfoRef.current?.userId
     if (targetId && sk && callStateRef.current !== 'idle') {
       sk.emit('call_ended', {
         to: targetId,
         conversationId: currentConvIdRef.current,
-        callType,
-        duration: durationTimerRef.current ? undefined : 0,
+        callType: callTypeRef.current,
+        duration: durationTimerRef.current ? callDuration : 0,
       })
     }
     resetCallState()
     onCallEnd?.(reason)
-  }, [callerInfo, callType, resetCallState, onCallEnd])
+  }, [callDuration, resetCallState, onCallEnd])
+
+  // FIX: Keep endCallRef in sync via useEffect so we don't write to a ref during render
+  useEffect(() => {
+    endCallRef.current = endCall
+  })
 
   // ─── Toggle Controls ──────────────────────────────────────
   const toggleMute = useCallback(() => {
     const stream = localStreamRef.current
     if (stream) {
-      const enabled = !stream.getAudioTracks()[0]?.enabled
-      stream.getAudioTracks().forEach(t => { t.enabled = enabled })
-      setIsMuted(!enabled)
+      const track = stream.getAudioTracks()[0]
+      if (track) {
+        track.enabled = !track.enabled
+        setIsMuted(!track.enabled)
+      }
     }
   }, [])
 
   const toggleVideo = useCallback(() => {
     const stream = localStreamRef.current
     if (stream) {
-      const enabled = !stream.getVideoTracks()[0]?.enabled
-      stream.getVideoTracks().forEach(t => { t.enabled = enabled })
-      setIsVideoOff(!enabled)
+      const track = stream.getVideoTracks()[0]
+      if (track) {
+        track.enabled = !track.enabled
+        setIsVideoOff(!track.enabled)
+      }
     }
   }, [])
 
@@ -331,11 +349,14 @@ const useWebRTC = ({ onCallEnd } = {}) => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true })
       const screenTrack = screenStream.getVideoTracks()[0]
-      const sender = peerRef.current?._pc?.getSenders().find(s => s.track?.kind === 'video')
+      const peer = peerRef.current
+      // Use RTCPeerConnection sender for track replacement
+      const sender = peer?._pc?.getSenders().find(s => s.track?.kind === 'video')
       if (sender) await sender.replaceTrack(screenTrack)
-      screenTrack.onended = () => {
+      // When screen sharing stops, revert to camera
+      screenTrack.onended = async () => {
         const camTrack = localStreamRef.current?.getVideoTracks()[0]
-        if (sender && camTrack) sender.replaceTrack(camTrack)
+        if (sender && camTrack) await sender.replaceTrack(camTrack)
       }
     } catch (err) {
       console.error('[WebRTC] Screen share error:', err)
@@ -348,29 +369,27 @@ const useWebRTC = ({ onCallEnd } = {}) => {
     if (!sk || !user) return
 
     const onIncomingCall = ({ from, signal, callType: type, caller, conversationId }) => {
-      // Ignore if already in a call
+      // Auto-reject if already in a call
       if (callStateRef.current !== 'idle') {
         sk.emit('call_rejected', { to: from, conversationId, callType: type })
         return
       }
       incomingSignalRef.current = signal
       currentConvIdRef.current = conversationId
-      setCallerInfo({ userId: from, ...caller })
-      setCallType(type)
+      updateCallerInfo({ userId: from, ...caller })
+      updateCallType(type)
       updateCallState('incoming')
     }
 
-    // Caller receives this when receiver accepts
-    const onCallAccepted = ({ signal, from }) => {
+    const onCallAccepted = ({ signal }) => {
       clearTimeout(callTimeoutRef.current)
       updateCallState('connecting')
-      // Feed the answer signal into our initiator peer
       if (peerRef.current) {
         peerRef.current.signal(signal)
       }
     }
 
-    // Exchange ICE candidates (trickle mode)
+    // Trickle ICE relay
     const onIceCandidate = ({ candidate }) => {
       if (peerRef.current && candidate) {
         peerRef.current.signal(candidate)
@@ -416,7 +435,7 @@ const useWebRTC = ({ onCallEnd } = {}) => {
       sk.off('call_unavailable', onCallUnavailable)
       sk.off('call_timeout', onCallTimeout)
     }
-  }, [user, resetCallState, onCallEnd, updateCallState])
+  }, [user, resetCallState, onCallEnd, updateCallState, updateCallerInfo, updateCallType])
 
   // ─── Cleanup on unmount ───────────────────────────────────
   useEffect(() => {
@@ -424,7 +443,6 @@ const useWebRTC = ({ onCallEnd } = {}) => {
       clearTimeout(callTimeoutRef.current)
       clearInterval(durationTimerRef.current)
       destroyPeer()
-      // Stop tracks directly from ref (avoids stale closure)
       localStreamRef.current?.getTracks().forEach(t => t.stop())
     }
   }, [destroyPeer])

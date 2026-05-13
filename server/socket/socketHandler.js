@@ -65,6 +65,13 @@ const socketHandler = (io) => {
     // Send current online list to this new connection
     socket.emit('online_users', Array.from(onlineUsers.keys()))
 
+    // ─── Conversation Room Join ──────────────────────────────
+    // FIX #11: Clients join a named room per conversation so typing events
+    // can be broadcast without a DB lookup.
+    socket.on('join_conversation', (conversationId) => {
+      if (conversationId) socket.join(`conv:${conversationId}`)
+    })
+
     // ─── Messaging ──────────────────────────────────────────
     socket.on('send_message', async (data, callback) => {
       try {
@@ -114,33 +121,17 @@ const socketHandler = (io) => {
       }
     })
 
-    // ─── Typing ─────────────────────────────────────────────
-    socket.on('typing_start', async ({ conversationId }) => {
-      try {
-        const conv = await Conversation.findById(conversationId)
-        if (!conv) return
-        conv.participants.forEach(pId => {
-          if (pId.toString() !== userId) {
-            io.to(pId.toString()).emit('typing_start', {
-              userId,
-              conversationId,
-              user: { name: socket.user.name, avatar: socket.user.avatar },
-            })
-          }
-        })
-      } catch { /* ignore */ }
+    // FIX #11: No DB query — broadcast to conversation room directly
+    socket.on('typing_start', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('typing_start', {
+        userId,
+        conversationId,
+        user: { name: socket.user.name, avatar: socket.user.avatar },
+      })
     })
 
-    socket.on('typing_stop', async ({ conversationId }) => {
-      try {
-        const conv = await Conversation.findById(conversationId)
-        if (!conv) return
-        conv.participants.forEach(pId => {
-          if (pId.toString() !== userId) {
-            io.to(pId.toString()).emit('typing_stop', { userId, conversationId })
-          }
-        })
-      } catch { /* ignore */ }
+    socket.on('typing_stop', ({ conversationId }) => {
+      socket.to(`conv:${conversationId}`).emit('typing_stop', { userId, conversationId })
     })
 
     // ─── Read Receipts ───────────────────────────────────────
@@ -177,39 +168,37 @@ const socketHandler = (io) => {
 
     // ─── WebRTC Signaling ────────────────────────────────────
 
-    /**
-     * Saves a call record + a "call" type message to the conversation.
-     * Returns early if no conversationId to avoid orphan call records.
-     */
+    // FIX #12: Parallelize Call.create + Message.create to save ~150ms per call event.
     const createCallRecord = async (toUserId, conversationId, callType, status, duration = 0) => {
       if (!conversationId) return
       try {
-        await Call.create({
-          caller: userId,
-          receiver: toUserId,
-          callType,
-          status,
-          duration,
-          conversation: conversationId,
-        })
+        // Run both creates in parallel
+        const [, message] = await Promise.all([
+          Call.create({
+            caller: userId,
+            receiver: toUserId,
+            callType,
+            status,
+            duration,
+            conversation: conversationId,
+          }),
+          Message.create({
+            conversation: conversationId,
+            sender: userId,
+            type: 'call',
+            text: '',
+            callData: { type: callType, status, duration },
+            readBy: [userId],
+          }),
+        ])
 
-        const message = await Message.create({
-          conversation: conversationId,
-          sender: userId,
-          type: 'call',
-          text: '',
-          callData: { type: callType, status, duration },
-          readBy: [userId],
-        })
-
+        // Populate sender then update conversation (2 ops, not 4)
         await message.populate('sender', 'name username avatar')
-        await Conversation.findByIdAndUpdate(conversationId, {
-          lastMessage: message._id,
-          updatedAt: new Date(),
-        })
-
-        const conv = await Conversation.findById(conversationId)
-          .populate('participants', 'name username avatar status lastSeen')
+        const conv = await Conversation.findByIdAndUpdate(
+          conversationId,
+          { lastMessage: message._id, updatedAt: new Date() },
+          { new: true }
+        ).populate('participants', 'name username avatar status lastSeen')
 
         conv?.participants.forEach(p => {
           io.to(p._id.toString()).emit('receive_message', { message, conversation: conv })

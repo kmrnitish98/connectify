@@ -2,8 +2,8 @@ import { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, User, Bell, Moon, Sun, Shield, Headphones,
-  Camera, Check, Loader2, ChevronRight
+  ArrowLeft, User, Bell, Moon, Shield, Headphones,
+  Camera, Check, ChevronDown
 } from 'lucide-react'
 import Avatar from '../components/Avatar'
 import Button from '../components/Button'
@@ -12,7 +12,6 @@ import { useTheme } from '../context/ThemeContext'
 import { userService } from '../services/userService'
 import toast from 'react-hot-toast'
 import { cn } from '../utils/helpers'
-import { staggerContainer, staggerItem } from '../animations/variants'
 
 const SECTIONS = [
   { id: 'profile', label: 'Profile', icon: User },
@@ -28,6 +27,7 @@ const Settings = () => {
   const { theme, toggleTheme } = useTheme()
   const [activeSection, setActiveSection] = useState('profile')
   const [saving, setSaving] = useState(false)
+  const [mobileSectionOpen, setMobileSectionOpen] = useState(false) // FIX #20: mobile nav
   const avatarInputRef = useRef(null)
 
   // Profile state
@@ -58,16 +58,19 @@ const Settings = () => {
       formData.append('status', status)
       if (avatarFile) formData.append('avatar', avatarFile)
 
-      const updated = await userService.updateProfile(formData)
-      updateUser(updated)
+      // userService.updateProfile returns data.user directly (already unwrapped)
+      const updatedUser = await userService.updateProfile(formData)
+      updateUser(updatedUser)
       setAvatarFile(null)
-      toast.success('Profile updated successfully')
+      toast.success('Profile updated successfully ✓')
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save profile')
     } finally {
       setSaving(false)
     }
   }
+
+  const activeLabel = SECTIONS.find(s => s.id === activeSection)?.label
 
   const renderContent = () => {
     switch (activeSection) {
@@ -189,7 +192,7 @@ const Settings = () => {
         <div className="space-y-4">
           {[
             { label: 'Last Seen', desc: 'Show when you were last active', options: ['Everyone', 'Contacts', 'Nobody'] },
-            { label: 'Read Receipts', desc: 'Let others know when you\'ve read their messages', options: ['On', 'Off'] },
+            { label: 'Read Receipts', desc: "Let others know when you've read their messages", options: ['On', 'Off'] },
             { label: 'Profile Photo', desc: 'Who can see your profile photo', options: ['Everyone', 'Contacts', 'Nobody'] },
           ].map(item => (
             <div key={item.label} className="p-4 glass-card rounded-xl">
@@ -245,7 +248,7 @@ const Settings = () => {
         </div>
 
         <div className="flex gap-6">
-          {/* Sidebar */}
+          {/* FIX #20: Desktop sidebar nav */}
           <div className="w-48 flex-shrink-0 hidden sm:block">
             <nav className="space-y-1">
               {SECTIONS.map(s => (
@@ -266,14 +269,50 @@ const Settings = () => {
             </nav>
           </div>
 
-          {/* Content */}
-          <div className="flex-1 glass-card rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-text-primary mb-6">
-              {SECTIONS.find(s => s.id === activeSection)?.label}
-            </h2>
-            <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              {renderContent()}
-            </motion.div>
+          {/* FIX #20: Mobile dropdown section selector */}
+          <div className="flex-1 min-w-0">
+            <div className="sm:hidden mb-4">
+              <button
+                onClick={() => setMobileSectionOpen(p => !p)}
+                className="w-full flex items-center justify-between px-4 py-3 glass-card rounded-xl border border-surface/10"
+              >
+                <div className="flex items-center gap-3">
+                  {(() => { const s = SECTIONS.find(x => x.id === activeSection); return s ? <s.icon className="w-4 h-4 text-accent-primary" /> : null })()}
+                  <span className="font-medium text-text-primary text-sm">{activeLabel}</span>
+                </div>
+                <ChevronDown className={cn('w-4 h-4 text-text-muted transition-transform', mobileSectionOpen && 'rotate-180')} />
+              </button>
+              {mobileSectionOpen && (
+                <div className="mt-1 glass-card rounded-xl border border-surface/10 overflow-hidden">
+                  {SECTIONS.map(s => (
+                    <button key={s.id}
+                      onClick={() => { setActiveSection(s.id); setMobileSectionOpen(false) }}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors',
+                        activeSection === s.id ? 'bg-accent-primary/10 text-accent-light' : 'text-text-muted hover:bg-surface/5'
+                      )}>
+                      <s.icon className="w-4 h-4 flex-shrink-0" />
+                      {s.label}
+                    </button>
+                  ))}
+                  <button onClick={() => { logout(); setMobileSectionOpen(false) }}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-400 hover:bg-red-500/10 border-t border-surface/10">
+                    <ArrowLeft className="w-4 h-4" />
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Content area */}
+            <div className="glass-card rounded-2xl p-4 sm:p-6">
+              <h2 className="text-lg font-semibold text-text-primary mb-6 hidden sm:block">
+                {activeLabel}
+              </h2>
+              <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                {renderContent()}
+              </motion.div>
+            </div>
           </div>
         </div>
       </div>

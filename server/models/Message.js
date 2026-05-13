@@ -78,5 +78,10 @@ const messageSchema = new mongoose.Schema(
 )
 
 messageSchema.index({ conversation: 1, createdAt: -1 })
+// FIX #18: Index deletedFor so soft-delete filter queries are fast
+messageSchema.index({ conversation: 1, deletedFor: 1 })
+// Index for read receipt lookups
+messageSchema.index({ conversation: 1, 'readBy': 1 })
 
 module.exports = mongoose.model('Message', messageSchema)
+

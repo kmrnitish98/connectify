@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Send, Smile, Paperclip, Mic, Phone, Video, MoreVertical,
+  Send, Smile, Paperclip, Phone, Video, MoreVertical,
   Search, Image as ImageIcon, X, Reply, Trash2, Edit3,
-  Check, CheckCheck, StopCircle, File, Download, ChevronDown, ArrowLeft
+  Check, CheckCheck, File, Download, ChevronDown, ArrowLeft
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import Avatar from './Avatar'
@@ -111,7 +111,7 @@ const formatDuration = (seconds) => {
 }
 
 // ─── Single Message Bubble ─────────────────────────────────────
-const MessageBubble = ({ msg, isMine, contact, onReply, onEdit, onDelete }) => {
+const MessageBubble = ({ msg, isMine, contact, currentUserId, onReply, onEdit, onDelete }) => {
   const [showMenu, setShowMenu] = useState(false)
   const menuRef = useRef(null)
 
@@ -175,7 +175,7 @@ const MessageBubble = ({ msg, isMine, contact, onReply, onEdit, onDelete }) => {
           <span className="text-xs text-text-faint">
             {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <MessageStatus msg={msg} currentUserId={msg.sender?._id} />
+          <MessageStatus msg={msg} currentUserId={currentUserId} />
         </div>
 
         {/* Context Menu */}
@@ -237,7 +237,7 @@ const ChatWindow = () => {
     updateMessageLocally, removeMessageLocally, getOtherParticipant, setActiveConversation } = useChat()
   const { user } = useAuth()
   const { startCall } = useCall()
-  const { uploadImage, uploadFile, progress, uploading, error: uploadError } = useUpload()
+  const { uploadImage, uploadFile, progress, uploading } = useUpload()
 
   const [input, setInput] = useState('')
   const [showEmoji, setShowEmoji] = useState(false)
@@ -266,10 +266,12 @@ const ChatWindow = () => {
 
   useEffect(() => {
     scrollToBottom('instant')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId])
 
   useEffect(() => {
     if (chatMessages.length > 0) scrollToBottom()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatMessages.length])
 
   const handleScroll = () => {
@@ -484,6 +486,7 @@ const ChatWindow = () => {
               msg={msg}
               isMine={msg.sender?._id === user?._id || msg.sender === user?._id}
               contact={contact}
+              currentUserId={user?._id}
               onReply={setReplyTo}
               onEdit={handleEdit}
               onDelete={handleDelete}
@@ -503,7 +506,7 @@ const ChatWindow = () => {
           <motion.button
             initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => scrollToBottom()}
-            className="absolute bottom-24 right-6 w-9 h-9 bg-bg-tertiary border border-surface/10 rounded-full flex items-center justify-center shadow-card hover:bg-surface/10 transition-colors z-10"
+            className="fixed bottom-28 right-6 w-9 h-9 bg-bg-tertiary border border-surface/10 rounded-full flex items-center justify-center shadow-card hover:bg-surface/10 transition-colors z-20"
           >
             <ChevronDown className="w-4 h-4 text-text-muted" />
           </motion.button>
@@ -541,7 +544,7 @@ const ChatWindow = () => {
         {showEmoji && (
           <motion.div initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className="absolute bottom-20 left-4 z-30 shadow-card rounded-xl overflow-hidden">
+            className="fixed bottom-24 left-4 z-[100] shadow-card rounded-xl overflow-hidden">
             <EmojiPicker
               onEmojiClick={onEmojiClick}
               theme="dark"
