@@ -2,22 +2,123 @@
 <html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Connectify - Premium real-time chat and video calling platform. Connect with your team anywhere, anytime." />
-    <meta name="keywords" content="chat, video call, messaging, team collaboration, real-time" />
-    <meta property="og:title" content="Connectify - Connect Without Limits" />
-    <meta property="og:description" content="Premium real-time messaging and video calling for modern teams." />
+
+    <!-- ═══════════════════════════════════════════════════════
+         PRIMARY SEO
+    ════════════════════════════════════════════════════════ -->
+    <title>Connectify – Real-Time Chat & Video Calling App</title>
+    <meta name="description"
+      content="Connectify is a premium real-time messaging and video calling platform. Chat, voice call, and video call with anyone, anywhere – instantly and securely." />
+    <meta name="keywords"
+      content="Connectify, real-time chat, video call, audio call, messaging app, team chat, online chat, WebRTC, instant messaging, free video call" />
+    <meta name="author" content="Connectify" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://connectify.vercel.app/" />
+
+    <!-- ═══════════════════════════════════════════════════════
+         OPEN GRAPH (Facebook, WhatsApp, LinkedIn)
+    ════════════════════════════════════════════════════════ -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:site_name"   content="Connectify" />
+    <meta property="og:url"         content="https://connectify.vercel.app/" />
+    <meta property="og:title"       content="Connectify – Real-Time Chat & Video Calling" />
+    <meta property="og:description"
+      content="Premium real-time messaging, audio calls, and HD video calls. Connect with your team or friends from anywhere in the world." />
+    <meta property="og:image"       content="https://connectify.vercel.app/og-image.png" />
+    <meta property="og:image:width"  content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt"   content="Connectify app – chat bubbles logo with the text Connectify" />
+    <meta property="og:locale"      content="en_US" />
+
+    <!-- ═══════════════════════════════════════════════════════
+         TWITTER CARD
+    ════════════════════════════════════════════════════════ -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:site"        content="@connectify" />
+    <meta name="twitter:creator"     content="@connectify" />
+    <meta name="twitter:title"       content="Connectify – Real-Time Chat & Video Calling" />
+    <meta name="twitter:description"
+      content="Premium real-time messaging, audio calls, and HD video calls. Free forever." />
+    <meta name="twitter:image"       content="https://connectify.vercel.app/og-image.png" />
+    <meta name="twitter:image:alt"   content="Connectify logo" />
+
+    <!-- ═══════════════════════════════════════════════════════
+         FAVICON – Connectify speech-bubble logo
+    ════════════════════════════════════════════════════════ -->
+    <link rel="icon"             type="image/svg+xml"  href="/favicon.svg" />
+    <link rel="alternate icon"   type="image/png"      href="/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon"                       href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest"                               href="/site.webmanifest" />
+    <meta name="theme-color" content="#22c55e" />
+    <meta name="msapplication-TileColor" content="#22c55e" />
+
+    <!-- ═══════════════════════════════════════════════════════
+         STRUCTURED DATA – WebApplication schema
+    ════════════════════════════════════════════════════════ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Connectify",
+      "url": "https://connectify.vercel.app",
+      "description": "Premium real-time messaging and video calling platform. Chat, audio call, and video call instantly and securely.",
+      "applicationCategory": "CommunicationApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "image": "https://connectify.vercel.app/og-image.png",
+      "creator": {
+        "@type": "Organization",
+        "name": "Connectify"
+      },
+      "featureList": [
+        "Real-time chat messaging",
+        "HD video calling (WebRTC)",
+        "Audio-only calling",
+        "File and image sharing",
+        "Online presence indicators",
+        "Read receipts",
+        "Typing indicators",
+        "End-to-end secure signaling"
+      ]
+    }
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════════
+         PERFORMANCE – Preconnect to external resources
+    ════════════════════════════════════════════════════════ -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- ═══════════════════════════════════════════════════════
+         WebRTC / simple-peer polyfills (must be before module scripts)
+    ════════════════════════════════════════════════════════ -->
     <script>
       window.global = window;
-      window.process = { env: { DEBUG: undefined }, nextTick: function(fn) { setTimeout(fn, 0); } };
+      window.process = {
+        env: { DEBUG: undefined },
+        nextTick: function(fn) { setTimeout(fn, 0); }
+      };
     </script>
-    <title>Connectify - Connect Without Limits</title>
   </head>
+
   <body>
+    <!-- Accessible no-script message -->
+    <noscript>
+      <div style="text-align:center;padding:2rem;font-family:sans-serif;color:#fff;background:#111">
+        <strong>Connectify</strong> requires JavaScript to run.
+        Please enable JavaScript in your browser settings.
+      </div>
+    </noscript>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

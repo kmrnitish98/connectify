@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { Menu, X, Zap } from 'lucide-react'
+import { Menu, X } from 'lucide-react'
 import Button from '../components/Button'
+import ConnectifyLogo from '../components/ConnectifyLogo'
 
 const NAV_LINKS = [
   { label: 'Features', href: '#features' },
@@ -34,13 +35,8 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-accent-primary to-accent-secondary flex items-center justify-center shadow-glow">
-              <Zap className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-display font-bold text-xl text-text-primary">
-              Connectify
-            </span>
+          <Link to="/" className="flex items-center gap-2" aria-label="Connectify Home">
+            <ConnectifyLogo size={34} showText={true} />
           </Link>
 
           {/* Desktop Nav */}
